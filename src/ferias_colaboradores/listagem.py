@@ -15,39 +15,59 @@ def listar_colaboradores(exibir_todos_anos=False):
         anos = [row[0] for row in cursor.fetchall()]
 
     table_data = []
+    data_atual = datetime.now()
+
     for col in colaboradores:
-        # Verificar se data_contratacao é válida
         data_contratacao = col[3]
         if data_contratacao is None:
-            continue  # Ignorar linhas com data_contratacao nula
+            print(f"Aviso: Linha com matrícula {col[1]} tem data_contratacao nula, ignorando.")
+            continue
         try:
-            colaborador = Colaborador(col[2], data_contratacao, col[4], col[0])  # nome, data_contratacao, preferencia_ferias, id
+            colaborador = Colaborador(col[2], data_contratacao, col[4], col[0])
             status = colaborador.status_ferias()
-            periodo1, periodo2 = sugerir_periodo_ferias(colaborador.preferencia_ferias, colaborador.proximo_periodo_ferias())
             color = "red" if status == "Pendente" else "yellow" if status == "Pendente (15 dias)" else "green"
+            data_contratacao_fmt = datetime.strptime(data_contratacao, "%Y-%m-%d").strftime("%d-%m-%Y")
             row = [
-                color,  # Coluna oculta para cor
+                color,
                 col[1],  # Matrícula
-                col[0],  # ID
                 col[2],  # Nome
-                data_contratacao,  # Contratação
+                data_contratacao_fmt,  # Contratação
                 col[4],  # Dias
                 status,  # Status
                 colaborador.dias_direito(),  # Dias Direito
-                periodo1.strftime("%Y-%m-%d"),  # Período 1
-                periodo2.strftime("%Y-%m-%d") if periodo2 else "N/A"  # Período 2
             ]
             historico = colaborador.historico_ferias()
+            ferias_passadas = sorted(
+                [(ano, data_inicio) for ano, data_inicio in historico if datetime.strptime(data_inicio, "%Y-%m-%d") < data_atual],
+                key=lambda x: datetime.strptime(x[1], "%Y-%m-%d"),
+                reverse=True
+            )[:2]  # Pega até as 2 últimas férias tiradas
+            ferias_futuras = sorted(
+                [(ano, data_inicio) for ano, data_inicio in historico if datetime.strptime(data_inicio, "%Y-%m-%d") >= data_atual],
+                key=lambda x: datetime.strptime(x[1], "%Y-%m-%d")
+            )
+            
             if exibir_todos_anos:
                 for ano in anos:
-                    ferias_ano = next((f for f in historico if f[0] == ano), None)
+                    ferias_ano = next((f for f in historico if int(f[0]) == ano), None)
                     row.append(ferias_ano[1] if ferias_ano else "N/A")
             else:
-                ultimo_ano = max([f[0] for f in historico] or [datetime.now().year])
-                ferias_ultimo = next((f for f in historico if f[0] == ultimo_ano), None)
-                row.append(ferias_ultimo[1] if ferias_ultimo else "N/A")
+                # Adiciona até 2 últimas férias tiradas
+                for i in range(2):
+                    if i < len(ferias_passadas):
+                        row.append(datetime.strptime(ferias_passadas[i][1], "%Y-%m-%d").strftime("%d-%m-%Y"))
+                    else:
+                        row.append("N/A")
+                # Adiciona férias futuras, se houver
+                if ferias_futuras:
+                    row.append(ferias_futuras[0][1])  # Primeira futura
+                else:
+                    row.append("N/A")
             table_data.append(row)
-        except ValueError:
-            continue  # Ignorar linhas com formato de data inválido
-    return table_data, anos if exibir_todos_anos else [datetime.now().year] if not table_data else [ultimo_ano]
+        except ValueError as e:
+            print(f"Aviso: Erro ao processar linha com matrícula {col[1]}: {e}")
+            continue
+    if not table_data:
+        print("Aviso: Nenhum dado válido encontrado para exibir.")
+    return table_data, anos if exibir_todos_anos else [datetime.now().year] if not table_data else [max(anos, default=datetime.now().year)]
 # endregion
