@@ -36,10 +36,6 @@ def init_db():
 
 def importar_csv(caminho_csv):
     # Normalizar caminho do arquivo
-
-    #python
-    #from ferias_colaboradores.database import importar_csv
-    #importar_csv(r"C:\_Python\ferias_colaboradores\docs\Férias.csv")
     caminho_csv = os.path.normpath(caminho_csv)
     if not os.path.exists(caminho_csv):
         print(f"Erro: Arquivo {caminho_csv} não encontrado.")
@@ -48,7 +44,7 @@ def importar_csv(caminho_csv):
     # Detectar codificação do arquivo
     with open(caminho_csv, 'rb') as file:
         result = chardet.detect(file.read())
-        encoding = result['encoding'] or 'cp1252'  # Default para ANSI (Windows-1252)
+        encoding = result['encoding'] or 'cp1252'
         confidence = result['confidence']
         print(f"Codificação detectada: {encoding} (confiança: {confidence:.2%})")
 
@@ -58,7 +54,6 @@ def importar_csv(caminho_csv):
             print(f"parse_data retornando None para: {data_str}")
             return None
         try:
-            # Tentar formato dd/mm/yy
             print(f"Tentando parsear {data_str} como dd/mm/yy")
             data = datetime.strptime(data_str, "%d/%m/%y")
             ano = data.year
@@ -69,7 +64,6 @@ def importar_csv(caminho_csv):
             return result
         except ValueError:
             try:
-                # Tentar formato dd-mm-yyyy
                 print(f"Tentando parsear {data_str} como dd-mm-yyyy")
                 result = datetime.strptime(data_str, "%d-%m-%Y").strftime("%Y-%m-%d")
                 print(f"parse_data sucesso: {data_str} -> {result}")
@@ -93,7 +87,6 @@ def importar_csv(caminho_csv):
                         matricula = row['Matricula']
                         nome = row['Nome']
                         print(f"Processando linha {row_num}, matrícula {matricula}")
-                        # Formatar nome para title case, preservando conjunções
                         palavras = nome.split()
                         conjuncoes = {'de', 'da', 'do', 'das', 'dos'}
                         nome_formatado = ' '.join(palavra.title() if palavra.lower() not in conjuncoes else palavra.lower() for palavra in palavras)
@@ -131,7 +124,6 @@ def importar_csv(caminho_csv):
                                     (colaborador_id, ano if ano else datetime.strptime(data_inicio, "%Y-%m-%d").year, data_inicio, opcao)
                                 )
 
-                        # Validar campo Deseja (apenas para verificação, não salvo no banco)
                         if row['Deseja'] and row['Deseja'] != 'N/A':
                             data_deseja = parse_data(row['Deseja'])
                             if not data_deseja:
