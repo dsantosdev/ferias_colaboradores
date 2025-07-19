@@ -2,6 +2,7 @@
 from tkinter import ttk, messagebox
 from .cadastro import cadastrar_colaborador, adicionar_ferias
 from .listagem import listar_colaboradores
+from .database import get_db_connection  # Adicionada a importação
 
 class App:
     def __init__(self, root):
@@ -179,8 +180,8 @@ class App:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT ativo FROM colaboradores WHERE matricula = ?", (row[1],))
-                ativo = cursor.fetchone()[0]
-                if not ativo:
+                ativo = cursor.fetchone()
+                if ativo and not ativo[0]:
                     self.tree.item(item, tags=(row[0], 'disabled'))
                     self.tree.tag_configure('disabled', foreground='gray')
 
