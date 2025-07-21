@@ -30,12 +30,12 @@ class App:
         self.btn_adicionar_ferias.pack(side='left', padx=5)
         
         # Treeview com nova coluna "Dias a Tirar"
-        self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar"), show="headings")
+        self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Configurar cabeçalhos e colunas
         self.font = font.Font(family="Helvetica", size=10)
-        for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar"):
+        for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
         
@@ -125,14 +125,14 @@ class App:
                     entry.delete(0, tk.END)
                     entry.insert(0, current_value)
                     return
-            elif column_name == "Dias a Tirar":
+            elif column_name == "Dias a Tirar Próximas":
                 try:
                     new_value = int(new_value)
                     if new_value < 0:
                         raise ValueError
                     self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
                 except ValueError:
-                    messagebox.showerror("Erro", "Dias a Tirar deve ser um número inteiro positivo.")
+                    messagebox.showerror("Erro", "Dias a Tirar Próximas deve ser um número inteiro positivo.")
                     entry.delete(0, tk.END)
                     entry.insert(0, current_value)
                     return
@@ -264,11 +264,11 @@ class App:
                 if "Próxima 2" in changes:
                     cursor.execute("UPDATE ferias_historico SET data_inicio = ? WHERE colaborador_id = ? AND ano = (SELECT MIN(ano) FROM ferias_historico WHERE colaborador_id = ? AND data_inicio > (SELECT MIN(data_inicio) FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now')))", (changes["Próxima 2"], colaborador_id, colaborador_id, colaborador_id))
                 if "Deseja" in changes:
-                    cursor.execute("UPDATE colaboradores SET deseja = ? WHERE id = ?", (changes["Deseja"], colaborador_id))  # Assumindo que "Deseja" é uma coluna
+                    cursor.execute("UPDATE colaboradores SET deseja = ? WHERE id = ?", (changes["Deseja"], colaborador_id))
                 if "Opção" in changes:
                     cursor.execute("UPDATE colaboradores SET preferencia = ? WHERE id = ?", (changes["Opção"], colaborador_id))
-                if "Dias a Tirar" in changes:
-                    cursor.execute("UPDATE colaboradores SET dias_a_tirar = ? WHERE id = ?", (changes["Dias a Tirar"], colaborador_id))  # Assumindo que existe essa coluna
+                if "Dias a Tirar Próximas" in changes:
+                    cursor.execute("UPDATE ferias_historico SET duracao = ? WHERE colaborador_id = ? AND ano = (SELECT MIN(ano) FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now'))", (changes["Dias a Tirar Próximas"], colaborador_id, colaborador_id))
             conn.commit()
         self.edited_items.clear()
         self.btn_salvar.config(state='disabled')
@@ -297,9 +297,15 @@ class App:
             print("Aviso: Nenhum colaborador válido para exibir na tabela.")
         for row in table_data:
             print("Inserindo linha:", row)
-            item = self.tree.insert("", tk.END, values=row[1:], tags=(row[0],))
             with get_db_connection() as conn:
                 cursor = conn.cursor()
+                cursor.execute("SELECT id FROM colaboradores WHERE matricula = ?", (row[1],))
+                colaborador_id = cursor.fetchone()[0]
+                cursor.execute("SELECT duracao FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now') ORDER BY data_inicio LIMIT 1", (colaborador_id,))
+                proxima_duracao = cursor.fetchone()
+                dias_a_tirar = proxima_duracao[0] if proxima_duracao else 0
+                values = row[1:] + (dias_a_tirar,)
+                item = self.tree.insert("", tk.END, values=values, tags=(row[0],))
                 cursor.execute("SELECT ativo FROM colaboradores WHERE matricula = ?", (row[1],))
                 ativo = cursor.fetchone()[0]
                 if not ativo:
