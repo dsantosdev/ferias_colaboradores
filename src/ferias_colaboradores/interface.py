@@ -38,6 +38,7 @@ class App:
         self.context_menu = tk.Menu(self.root, tearoff=0)
         self.context_menu.add_command(label="Editar Colaborador", command=self.editar_colaborador)
         self.context_menu.add_command(label="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
+        self.context_menu.add_command(label="Editar Férias", command=self.editar_ferias)
         self.context_menu.add_command(label="Excluir Colaborador", command=self.excluir_colaborador)
         self.tree.bind("<Button-3>", self.mostrar_menu_contexto)
         
@@ -208,6 +209,80 @@ class App:
                     cursor = conn.cursor()
                     cursor.execute("UPDATE colaboradores SET nome = ?, data_contratacao = ?, preferencia = ? WHERE matricula = ?",
                                    (novo_nome, data_obj, nova_preferencia, matricula))
+                    conn.commit()
+                self.atualizar_lista()
+                janela.destroy()
+            except ValueError as e:
+                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
+            except Exception as e:
+                messagebox.showerror("Erro", str(e))
+
+        tk.Button(janela, text="Salvar", command=salvar).pack(pady=10)
+        janela.protocol("WM_DELETE_WINDOW", lambda: janela.destroy())
+
+    def editar_ferias(self):
+        selected_item = self.tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Aviso", "Selecione um colaborador.")
+            return
+        matricula = self.tree.item(selected_item, 'values')[0]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM colaboradores WHERE matricula = ?", (matricula,))
+            colaborador_id = cursor.fetchone()[0]
+            cursor.execute("SELECT ano, data_inicio, duracao FROM ferias_historico WHERE colaborador_id = ? ORDER BY data_inicio DESC", (colaborador_id,))
+            ferias = cursor.fetchall()
+
+        if not ferias:
+            messagebox.showwarning("Aviso", "Nenhuma férias registrada para este colaborador.")
+            return
+
+        janela = tk.Toplevel(self.root)
+        janela.title("Editar Férias")
+        janela.geometry("300x300")
+        janela.transient(self.root)
+        janela.grab_set()
+
+        # Variáveis para rastrear a férias selecionada
+        selected_ferias = tk.StringVar(value=ferias[0] if ferias else "")
+        ferias_list = ttk.Combobox(janela, textvariable=selected_ferias, values=[f"{f[0]} - {f[1]} ({f[2]} dias)" for f in ferias])
+        ferias_list.pack(pady=5)
+
+        tk.Label(janela, text="Data de Início (dd/mm/aaaa):").pack(pady=5)
+        data_entry = tk.Entry(janela)
+        data_entry.insert(0, datetime.strptime(ferias[0][1], "%Y-%m-%d").strftime("%d/%m/%Y") if ferias else "")
+        data_entry.pack()
+
+        tk.Label(janela, text="Duração (15 ou 30 dias):").pack(pady=5)
+        duracao_entry = tk.Entry(janela)
+        duracao_entry.insert(0, str(ferias[0][2]) if ferias else "")
+        duracao_entry.pack()
+
+        def atualizar_campos(event=None):
+            if ferias_list.get():
+                ano, data, duracao = next(f for f in ferias if f"{f[0]} - {f[1]} ({f[2]} dias)" == ferias_list.get())
+                data_entry.delete(0, tk.END)
+                data_entry.insert(0, datetime.strptime(data, "%Y-%m-%d").strftime("%d/%m/%Y"))
+                duracao_entry.delete(0, tk.END)
+                duracao_entry.insert(0, str(duracao))
+
+        ferias_list.bind("<<ComboboxSelected>>", atualizar_campos)
+        atualizar_campos()
+
+        def salvar():
+            if not ferias_list.get():
+                messagebox.showerror("Erro", "Selecione uma férias para editar.")
+                return
+            nova_data = data_entry.get()
+            nova_duracao = duracao_entry.get()
+            try:
+                nova_duracao = int(nova_duracao) if nova_duracao in ('15', '30') else int(duracao_entry.get())
+                data_obj = datetime.strptime(nova_data, "%d/%m/%Y").strftime("%Y-%m-%d")
+                ano_selecionado, _, _ = next(f for f in ferias if f"{f[0]} - {f[1]} ({f[2]} dias)" == ferias_list.get())
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE ferias_historico SET data_inicio = ?, duracao = ? WHERE colaborador_id = ? AND ano = ?",
+                                   (data_obj, nova_duracao, colaborador_id, ano_selecionado))
                     conn.commit()
                 self.atualizar_lista()
                 janela.destroy()
