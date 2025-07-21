@@ -87,8 +87,6 @@ class App:
             return
         column = self.tree.identify_column(event.x)
         column_name = self.tree.heading(column, 'text')
-        if column_name not in ["Nome", "Admissão", "Opção"]:  # Apenas colunas editáveis
-            return
         current_value = self.tree.set(item, column_name)
         self.tree.set(item, column_name, "")
         entry = tk.Entry(self.tree)
@@ -102,12 +100,17 @@ class App:
                 entry.delete(0, tk.END)
                 entry.insert(0, current_value)
                 return
-            if column_name == "Admissão":
+            # Formatar datas se for um campo de data
+            date_columns = ["Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2"]
+            if column_name in date_columns:
                 try:
+                    # Tentar interpretar como número (ex.: 01092023) e formatar para dd/mm/aaaa
+                    if new_value.isdigit() and len(new_value) == 8:
+                        new_value = f"{new_value[:2]}/{new_value[2:4]}/{new_value[4:]}"
                     new_value = datetime.strptime(new_value, "%d/%m/%Y").strftime("%Y-%m-%d")
                     self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
                 except ValueError:
-                    messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa.")
+                    messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa ou 8 dígitos (ex.: 01092023).")
                     entry.delete(0, tk.END)
                     entry.insert(0, current_value)
                     return
@@ -122,9 +125,20 @@ class App:
                     entry.delete(0, tk.END)
                     entry.insert(0, current_value)
                     return
-            elif column_name == "Nome":
+            elif column_name == "Dias a Tirar":
+                try:
+                    new_value = int(new_value)
+                    if new_value < 0:
+                        raise ValueError
+                    self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                except ValueError:
+                    messagebox.showerror("Erro", "Dias a Tirar deve ser um número inteiro positivo.")
+                    entry.delete(0, tk.END)
+                    entry.insert(0, current_value)
+                    return
+            else:
                 self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
-            self.tree.set(item, column_name, entry.get())
+            self.tree.set(item, column_name, entry.get() if column_name not in date_columns else datetime.strptime(new_value, "%Y-%m-%d").strftime("%d/%m/%Y"))
             entry.destroy()
             self.btn_salvar.config(state='normal' if self.edited_items else 'disabled')
 
@@ -171,13 +185,15 @@ class App:
             preferencia = preferencia_entry.get()
             try:
                 preferencia = int(preferencia) if preferencia in ('15', '30') else 30
+                if data.isdigit() and len(data) == 8:
+                    data = f"{data[:2]}/{data[2:4]}/{data[4:]}"
                 data_obj = datetime.strptime(data, "%d/%m/%Y").strftime("%Y-%m-%d")
                 cadastrar_colaborador(matricula, nome, data_obj, preferencia)
                 self.atualizar_lista()
                 janela.destroy()
                 self.btn_adicionar_ferias.config(state='normal')
             except ValueError as e:
-                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
+                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa ou 8 dígitos (ex.: 01092023). {str(e)}")
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
         
@@ -211,13 +227,15 @@ class App:
             duracao = duracao_entry.get()
             try:
                 duracao = int(duracao) if duracao in ('15', '30') else 30
+                if data.isdigit() and len(data) == 8:
+                    data = f"{data[:2]}/{data[2:4]}/{data[4:]}"
                 data_obj = datetime.strptime(data, "%d/%m/%Y").strftime("%Y-%m-%d")
                 adicionar_ferias(matricula, data_obj, duracao)
                 self.atualizar_lista()
                 janela.destroy()
                 self.btn_adicionar_colaborador.config(state='normal')
             except ValueError as e:
-                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
+                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa ou 8 dígitos (ex.: 01092023). {str(e)}")
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
         
@@ -237,8 +255,20 @@ class App:
                     cursor.execute("UPDATE colaboradores SET nome = ? WHERE id = ?", (changes["Nome"], colaborador_id))
                 if "Admissão" in changes:
                     cursor.execute("UPDATE colaboradores SET data_contratacao = ? WHERE id = ?", (changes["Admissão"], colaborador_id))
+                if "Penúltima" in changes:
+                    cursor.execute("UPDATE ferias_historico SET data_inicio = ? WHERE colaborador_id = ? AND ano = (SELECT MAX(ano) - 1 FROM ferias_historico WHERE colaborador_id = ?)", (changes["Penúltima"], colaborador_id, colaborador_id))
+                if "Última" in changes:
+                    cursor.execute("UPDATE ferias_historico SET data_inicio = ? WHERE colaborador_id = ? AND ano = (SELECT MAX(ano) FROM ferias_historico WHERE colaborador_id = ?)", (changes["Última"], colaborador_id, colaborador_id))
+                if "Próxima 1" in changes:
+                    cursor.execute("UPDATE ferias_historico SET data_inicio = ? WHERE colaborador_id = ? AND ano = (SELECT MIN(ano) FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now'))", (changes["Próxima 1"], colaborador_id, colaborador_id))
+                if "Próxima 2" in changes:
+                    cursor.execute("UPDATE ferias_historico SET data_inicio = ? WHERE colaborador_id = ? AND ano = (SELECT MIN(ano) FROM ferias_historico WHERE colaborador_id = ? AND data_inicio > (SELECT MIN(data_inicio) FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now')))", (changes["Próxima 2"], colaborador_id, colaborador_id, colaborador_id))
+                if "Deseja" in changes:
+                    cursor.execute("UPDATE colaboradores SET deseja = ? WHERE id = ?", (changes["Deseja"], colaborador_id))  # Assumindo que "Deseja" é uma coluna
                 if "Opção" in changes:
                     cursor.execute("UPDATE colaboradores SET preferencia = ? WHERE id = ?", (changes["Opção"], colaborador_id))
+                if "Dias a Tirar" in changes:
+                    cursor.execute("UPDATE colaboradores SET dias_a_tirar = ? WHERE id = ?", (changes["Dias a Tirar"], colaborador_id))  # Assumindo que existe essa coluna
             conn.commit()
         self.edited_items.clear()
         self.btn_salvar.config(state='disabled')
