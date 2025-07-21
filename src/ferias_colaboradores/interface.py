@@ -14,9 +14,13 @@ class App:
         self.sort_reverse = False
         self.edited_items = {}  # Armazena alterações temporárias
         
+        # Configurar grid no root
+        self.root.grid_rowconfigure(1, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        
         # Frame para botões no topo
         self.button_frame = tk.Frame(self.root)
-        self.button_frame.pack(pady=10)
+        self.button_frame.grid(row=0, column=0, sticky="ew", pady=10)
         
         # Botão de salvar
         self.btn_salvar = tk.Button(self.button_frame, text="Salvar Alterações", command=self.salvar_alteracoes, state='disabled')
@@ -29,17 +33,23 @@ class App:
         self.btn_adicionar_ferias = tk.Button(self.button_frame, text="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
         self.btn_adicionar_ferias.pack(side='left', padx=5)
         
-        # Treeview com grid e arrastar colunas
-        self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
-        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
+        # Frame para Treeview
+        self.tree_frame = tk.Frame(self.root)
+        self.tree_frame.grid(row=1, column=0, sticky="nsew")
+        self.tree_frame.grid_rowconfigure(0, weight=1)
+        self.tree_frame.grid_columnconfigure(0, weight=1)
         
-        # Configurar grid e cabeçalhos
+        # Treeview com arrastar colunas
+        self.tree = ttk.Treeview(self.tree_frame, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        
+        # Configurar cabeçalhos e colunas
         self.font = font.Font(family="Helvetica", size=10)
         columns = ["Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"]
         for i, col in enumerate(columns):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
-            self.tree.grid(column=i, row=0, sticky="nsew")
+            self.tree_frame.grid_columnconfigure(i, weight=1)
         
         # Configurar arrastar colunas
         self.tree.bind("<Button-1>", self.start_drag)
@@ -47,11 +57,6 @@ class App:
         self.tree.bind("<ButtonRelease-1>", self.end_drag)
         self.dragging = None
         self.drag_start_x = 0
-        
-        # Configurar grid do root
-        self.root.grid_rowconfigure(0, weight=1)
-        for i in range(len(columns)):
-            self.root.grid_columnconfigure(i, weight=1)
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
@@ -114,7 +119,7 @@ class App:
                     for i, col in enumerate(columns):
                         self.tree.heading(col, text=col)
                         self.tree.column(col, width=self.tree.column(col, "width"))
-                        self.tree.grid(column=i, row=0, sticky="nsew")
+                        self.tree_frame.grid_columnconfigure(i, weight=1)
                     self.drag_start_x = event.x
 
     def end_drag(self, event):
