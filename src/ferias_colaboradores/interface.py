@@ -160,12 +160,12 @@ class App:
         matricula = self.tree.item(selected_item, 'values')[0]
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT nome, data_contratacao, opcao FROM colaboradores WHERE matricula = ?", (matricula,))
+            cursor.execute("SELECT nome, data_contratacao, preferencia FROM colaboradores WHERE matricula = ?", (matricula,))
             dados = cursor.fetchone()
             if not dados:
                 messagebox.showerror("Erro", "Colaborador não encontrado.")
                 return
-            nome, data_contratacao, opcao = dados
+            nome, data_contratacao, preferencia = dados
 
         janela = tk.Toplevel(self.root)
         janela.title("Editar Colaborador")
@@ -188,7 +188,7 @@ class App:
 
         tk.Label(janela, text="Preferência de Férias (15 ou 30 dias):").pack(pady=5)
         preferencia_entry = tk.Entry(janela)
-        preferencia_entry.insert(0, str(opcao))
+        preferencia_entry.insert(0, str(preferencia))
         preferencia_entry.pack()
 
         def salvar():
@@ -196,11 +196,11 @@ class App:
             nova_data = data_entry.get()
             nova_preferencia = preferencia_entry.get()
             try:
-                nova_preferencia = int(nova_preferencia) if nova_preferencia in ('15', '30') else opcao
+                nova_preferencia = int(nova_preferencia) if nova_preferencia in ('15', '30') else preferencia
                 data_obj = datetime.strptime(nova_data, "%d/%m/%Y").strftime("%Y-%m-%d")
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE colaboradores SET nome = ?, data_contratacao = ?, opcao = ? WHERE matricula = ?",
+                    cursor.execute("UPDATE colaboradores SET nome = ?, data_contratacao = ?, preferencia = ? WHERE matricula = ?",
                                    (novo_nome, data_obj, nova_preferencia, matricula))
                     conn.commit()
                 self.atualizar_lista()
@@ -243,5 +243,5 @@ class App:
                 ativo = cursor.fetchone()[0]
                 if not ativo:
                     self.tree.item(item, tags=(row[0], 'disabled'))
-                    self.tree.tag_configure('disabled', foreground='gray')
+                    self.tree.tag_configure('disabled', foreground="gray")
         self.ajustar_largura_colunas(table_data)

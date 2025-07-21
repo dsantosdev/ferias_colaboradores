@@ -14,7 +14,7 @@ class Colaborador:
     def historico_ferias(self):
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT ano, data_inicio FROM ferias_historico WHERE colaborador_id = ?", (self.id,))
+            cursor.execute("SELECT ano, data_inicio, duracao FROM ferias_historico WHERE colaborador_id = ? ORDER BY data_inicio", (self.id,))
             return cursor.fetchall()
 
     def proximo_periodo_ferias(self):
