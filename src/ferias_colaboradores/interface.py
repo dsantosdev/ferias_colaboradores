@@ -105,10 +105,13 @@ class App:
             preferencia = preferencia_entry.get()
             try:
                 preferencia = int(preferencia) if preferencia in ('15', '30') else 30
-                cadastrar_colaborador(matricula, nome, data, preferencia)
+                data_obj = datetime.strptime(data, "%d/%m/%Y").strftime("%Y-%m-%d")
+                cadastrar_colaborador(matricula, nome, data_obj, preferencia)
                 self.atualizar_lista()
                 janela.destroy()
                 self.btn_adicionar_ferias.config(state='normal')
+            except ValueError as e:
+                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
         
@@ -142,10 +145,13 @@ class App:
             duracao = duracao_entry.get()
             try:
                 duracao = int(duracao) if duracao in ('15', '30') else 30
-                adicionar_ferias(matricula, data, duracao)
+                data_obj = datetime.strptime(data, "%d/%m/%Y").strftime("%Y-%m-%d")
+                adicionar_ferias(matricula, data_obj, duracao)
                 self.atualizar_lista()
                 janela.destroy()
                 self.btn_adicionar_colaborador.config(state='normal')
+            except ValueError as e:
+                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
         
@@ -183,7 +189,7 @@ class App:
 
         tk.Label(janela, text="Data de Contratação (dd/mm/aaaa):").pack(pady=5)
         data_entry = tk.Entry(janela)
-        data_entry.insert(0, data_contratacao.strftime("%d/%m/%Y") if isinstance(data_contratacao, datetime) else data_contratacao)
+        data_entry.insert(0, datetime.strptime(data_contratacao, "%Y-%m-%d").strftime("%d/%m/%Y"))
         data_entry.pack()
 
         tk.Label(janela, text="Preferência de Férias (15 ou 30 dias):").pack(pady=5)
