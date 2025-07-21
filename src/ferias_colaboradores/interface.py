@@ -187,11 +187,10 @@ class App:
             if item not in self.edited_items or not self.edited_items[item]:
                 self.btn_salvar.config(state='disabled')
 
-        entry.bind("<Return>", save_edit)
-        entry.bind("<Escape>", save_edit)
-        entry.bind("<Enter>", save_edit)
-        entry.bind("<NumpadEnter>", save_edit)
-        entry.bind("<FocusOut>", save_edit)
+        entry.bind("<Return>", cancel_edit)
+        entry.bind("<KP_Enter>", cancel_edit)
+        entry.bind("<Escape>", cancel_edit)
+        entry.bind("<FocusOut>", cancel_edit)
         entry.place(x=self.tree.bbox(item, column)[0], y=self.tree.bbox(item, column)[1], 
                     width=self.tree.column(column_name)["width"], height=self.tree.bbox(item, column)[3])
 
@@ -349,7 +348,7 @@ class App:
                     data_inicio1 = datetime.strptime(proximas[0][0], "%Y-%m-%d").strftime("%d/%m/%Y")
                     data_fim1 = datetime.strptime(proximas[0][0], "%Y-%m-%d") + timedelta(days=proximas[0][1] - 1)
                     proxima1 = f"{data_inicio1} a {data_fim1.strftime('%d/%m/%Y')}"
-                    if len(proximas) > 1:
+                    if len(proximas) > 1:  # Garantir que "Próxima 2" exiba o intervalo corretamente
                         data_inicio2 = datetime.strptime(proximas[1][0], "%Y-%m-%d").strftime("%d/%m/%Y")
                         data_fim2 = datetime.strptime(proximas[1][0], "%Y-%m-%d") + timedelta(days=proximas[1][1] - 1)
                         proxima2 = f"{data_inicio2} a {data_fim2.strftime('%d/%m/%Y')}"
