@@ -4,7 +4,7 @@ from tkinter import ttk, messagebox, font
 from .cadastro import cadastrar_colaborador, adicionar_ferias
 from .listagem import listar_colaboradores
 from .database import get_db_connection
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class App:
     def __init__(self, root):
@@ -58,7 +58,12 @@ class App:
 
     def sort_by_column(self, col):
         table_data = [(self.tree.set(item, col), item) for item in self.tree.get_children()]
-        table_data.sort(reverse=self.sort_reverse)
+        # Tratar colunas de data para ordenação correta
+        date_columns = ["Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2"]
+        if col in date_columns:
+            table_data.sort(key=lambda x: datetime.strptime(x[0].split(" a ")[0], "%d/%m/%Y") if x[0] else datetime.min, reverse=self.sort_reverse)
+        else:
+            table_data.sort(reverse=self.sort_reverse)
         for index, (val, item) in enumerate(table_data):
             self.tree.move(item, '', index)
         self.sort_reverse = not self.sort_reverse
@@ -88,6 +93,12 @@ class App:
         column = self.tree.identify_column(event.x)
         column_name = self.tree.heading(column, 'text')
         current_value = self.tree.set(item, column_name)
+        # Para "Próxima 1" e "Próxima 2", extrair apenas a data inicial para edição
+        if column_name in ["Próxima 1", "Próxima 2"] and current_value:
+            try:
+                current_value = current_value.split(" a ")[0]  # Mostra apenas a data inicial ao editar
+            except IndexError:
+                pass
         self.tree.set(item, column_name, "")
         entry = tk.Entry(self.tree)
         entry.insert(0, current_value)
@@ -98,7 +109,7 @@ class App:
             new_value = entry.get().strip()
             if not new_value:
                 entry.delete(0, tk.END)
-                entry.insert(0, current_value)
+                entry.insert(0, current_value.split(" a ")[0] if column_name in ["Próxima 1", "Próxima 2"] else current_value)
                 return
             # Formatar datas se for um campo de data
             date_columns = ["Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2"]
@@ -109,10 +120,17 @@ class App:
                         new_value = f"{new_value[:2]}/{new_value[2:4]}/{new_value[4:]}"
                     new_value = datetime.strptime(new_value, "%d/%m/%Y").strftime("%Y-%m-%d")
                     self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                    # Recalcular intervalo para "Próxima 1" e "Próxima 2"
+                    if column_name in ["Próxima 1", "Próxima 2"]:
+                        duracao = int(self.tree.set(item, "Dias a Tirar Próximas") or 0)
+                        data_inicio = datetime.strptime(new_value, "%Y-%m-%d")
+                        data_fim = data_inicio + timedelta(days=duracao - 1)
+                        display_value = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+                        self.tree.set(item, column_name, display_value)
                 except ValueError:
                     messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa ou 8 dígitos (ex.: 01092023).")
                     entry.delete(0, tk.END)
-                    entry.insert(0, current_value)
+                    entry.insert(0, current_value.split(" a ")[0] if column_name in ["Próxima 1", "Próxima 2"] else current_value)
                     return
             elif column_name == "Opção":
                 try:
@@ -131,6 +149,13 @@ class App:
                     if new_value < 0:
                         raise ValueError
                     self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                    # Atualizar intervalo se "Próxima 1" ou "Próxima 2" foi editada antes
+                    for prox_col in ["Próxima 1", "Próxima 2"]:
+                        if prox_col in self.edited_items.get(item, {}):
+                            data_inicio = datetime.strptime(self.edited_items[item][prox_col], "%Y-%m-%d")
+                            data_fim = data_inicio + timedelta(days=new_value - 1)
+                            display_value = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+                            self.tree.set(item, prox_col, display_value)
                 except ValueError:
                     messagebox.showerror("Erro", "Dias a Tirar Próximas deve ser um número inteiro positivo.")
                     entry.delete(0, tk.END)
@@ -301,11 +326,21 @@ class App:
                 cursor = conn.cursor()
                 cursor.execute("SELECT id FROM colaboradores WHERE matricula = ?", (row[1],))
                 colaborador_id = cursor.fetchone()[0]
+                cursor.execute("SELECT data_inicio, duracao FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now') ORDER BY data_inicio LIMIT 2", (colaborador_id,))
+                proximas = cursor.fetchall()
+                proxima1 = proxima2 = ""
+                if proximas:
+                    data_inicio1 = datetime.strptime(proximas[0][0], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    data_fim1 = datetime.strptime(proximas[0][0], "%Y-%m-%d") + timedelta(days=proximas[0][1] - 1)
+                    proxima1 = f"{data_inicio1} a {data_fim1.strftime('%d/%m/%Y')}"
+                    if len(proximas) > 1:
+                        data_inicio2 = datetime.strptime(proximas[1][0], "%Y-%m-%d").strftime("%d/%m/%Y")
+                        data_fim2 = datetime.strptime(proximas[1][0], "%Y-%m-%d") + timedelta(days=proximas[1][1] - 1)
+                        proxima2 = f"{data_inicio2} a {data_fim2.strftime('%d/%m/%Y')}"
                 cursor.execute("SELECT duracao FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now') ORDER BY data_inicio LIMIT 1", (colaborador_id,))
                 proxima_duracao = cursor.fetchone()
                 dias_a_tirar = proxima_duracao[0] if proxima_duracao else 0
-                # Corrigindo a concatenação de lista com tupla
-                values = list(row[1:]) + [dias_a_tirar]
+                values = list(row[1:5]) + [proxima1, proxima2] + list(row[7:]) + [dias_a_tirar]
                 item = self.tree.insert("", tk.END, values=values, tags=(row[0],))
                 cursor.execute("SELECT ativo FROM colaboradores WHERE matricula = ?", (row[1],))
                 ativo = cursor.fetchone()[0]
