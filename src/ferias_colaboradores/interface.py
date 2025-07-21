@@ -38,9 +38,6 @@ class App:
         for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar"):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
-            # Habilitar edição para colunas editáveis
-            if col in ["Nome", "Admissão", "Opção"]:
-                self.tree.column(col, editable=True)
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
