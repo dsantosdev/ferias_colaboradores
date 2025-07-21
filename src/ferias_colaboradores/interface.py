@@ -168,13 +168,29 @@ class App:
             self.btn_salvar.config(state='normal' if self.edited_items else 'disabled')
 
         def cancel_edit(event=None):
-            self.tree.set(item, column_name, current_value)
+            new_value = entry.get().strip()
+            if new_value and column_name in ["Próxima 1", "Próxima 2"]:
+                try:
+                    # Recalcular o intervalo com a nova data inicial ao cancelar
+                    new_date = datetime.strptime(new_value, "%d/%m/%Y").strftime("%Y-%m-%d")
+                    duracao = int(self.tree.set(item, "Dias a Tirar Próximas") or 0)
+                    data_inicio = datetime.strptime(new_date, "%Y-%m-%d")
+                    data_fim = data_inicio + timedelta(days=duracao - 1)
+                    display_value = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+                    self.tree.set(item, column_name, display_value)
+                    self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_date}
+                except ValueError:
+                    pass  # Mantém o valor original se a data for inválida
+            elif not new_value:
+                self.tree.set(item, column_name, current_value)
             entry.destroy()
             if item not in self.edited_items or not self.edited_items[item]:
                 self.btn_salvar.config(state='disabled')
 
         entry.bind("<Return>", save_edit)
-        entry.bind("<Escape>", cancel_edit)
+        entry.bind("<Escape>", save_edit)
+        entry.bind("<Enter>", save_edit)
+        entry.bind("<NumpadEnter>", save_edit)
         entry.bind("<FocusOut>", save_edit)
         entry.place(x=self.tree.bbox(item, column)[0], y=self.tree.bbox(item, column)[1], 
                     width=self.tree.column(column_name)["width"], height=self.tree.bbox(item, column)[3])
