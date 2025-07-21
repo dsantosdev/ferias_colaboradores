@@ -29,15 +29,29 @@ class App:
         self.btn_adicionar_ferias = tk.Button(self.button_frame, text="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
         self.btn_adicionar_ferias.pack(side='left', padx=5)
         
-        # Treeview com nova coluna "Dias a Tirar Próximas"
+        # Treeview com grid e arrastar colunas
         self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Configurar cabeçalhos e colunas
+        # Configurar grid e cabeçalhos
         self.font = font.Font(family="Helvetica", size=10)
-        for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"):
+        columns = ["Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"]
+        for i, col in enumerate(columns):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
+            self.tree.grid(column=i, row=0, sticky="nsew")
+        
+        # Configurar arrastar colunas
+        self.tree.bind("<Button-1>", self.start_drag)
+        self.tree.bind("<B1-Motion>", self.drag_column)
+        self.tree.bind("<ButtonRelease-1>", self.end_drag)
+        self.dragging = None
+        self.drag_start_x = 0
+        
+        # Configurar grid do root
+        self.root.grid_rowconfigure(0, weight=1)
+        for i in range(len(columns)):
+            self.root.grid_columnconfigure(i, weight=1)
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
@@ -80,6 +94,31 @@ class App:
         if item:
             self.tree.selection_set(item)
             self.context_menu.post(event.x_root, event.y_root)
+
+    def start_drag(self, event):
+        column = self.tree.identify_column(event.x)
+        if column:
+            self.dragging = column
+            self.drag_start_x = event.x
+
+    def drag_column(self, event):
+        if self.dragging:
+            dx = event.x - self.drag_start_x
+            if dx != 0:
+                columns = list(self.tree["columns"])
+                current_idx = columns.index(self.dragging)
+                new_idx = max(0, min(len(columns) - 1, current_idx + (1 if dx > 0 else -1)))
+                if current_idx != new_idx:
+                    columns[current_idx], columns[new_idx] = columns[new_idx], columns[current_idx]
+                    self.tree.configure(columns=columns)
+                    for i, col in enumerate(columns):
+                        self.tree.heading(col, text=col)
+                        self.tree.column(col, width=self.tree.column(col, "width"))
+                        self.tree.grid(column=i, row=0, sticky="nsew")
+                    self.drag_start_x = event.x
+
+    def end_drag(self, event):
+        self.dragging = None
 
     def on_double_click(self, event):
         item = self.tree.identify_row(event.y)
