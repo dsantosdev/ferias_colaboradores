@@ -14,13 +14,9 @@ class App:
         self.sort_reverse = False
         self.edited_items = {}  # Armazena alterações temporárias
         
-        # Configurar grid no root
-        self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_columnconfigure(0, weight=1)
-        
         # Frame para botões no topo
         self.button_frame = tk.Frame(self.root)
-        self.button_frame.grid(row=0, column=0, sticky="ew", pady=10)
+        self.button_frame.pack(pady=10)
         
         # Botão de salvar
         self.btn_salvar = tk.Button(self.button_frame, text="Salvar Alterações", command=self.salvar_alteracoes, state='disabled')
@@ -33,30 +29,15 @@ class App:
         self.btn_adicionar_ferias = tk.Button(self.button_frame, text="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
         self.btn_adicionar_ferias.pack(side='left', padx=5)
         
-        # Frame para Treeview
-        self.tree_frame = tk.Frame(self.root)
-        self.tree_frame.grid(row=1, column=0, sticky="nsew")
-        self.tree_frame.grid_rowconfigure(0, weight=1)
-        self.tree_frame.grid_columnconfigure(0, weight=1)
-        
-        # Treeview com arrastar colunas
-        self.tree = ttk.Treeview(self.tree_frame, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
-        self.tree.grid(row=0, column=0, sticky="nsew")
+        # Treeview
+        self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
+        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Configurar cabeçalhos e colunas
         self.font = font.Font(family="Helvetica", size=10)
-        columns = ["Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"]
-        for i, col in enumerate(columns):
+        for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
-            self.tree_frame.grid_columnconfigure(i, weight=1)
-        
-        # Configurar arrastar colunas
-        self.tree.bind("<Button-1>", self.start_drag)
-        self.tree.bind("<B1-Motion>", self.drag_column)
-        self.tree.bind("<ButtonRelease-1>", self.end_drag)
-        self.dragging = None
-        self.drag_start_x = 0
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
@@ -99,31 +80,6 @@ class App:
         if item:
             self.tree.selection_set(item)
             self.context_menu.post(event.x_root, event.y_root)
-
-    def start_drag(self, event):
-        column = self.tree.identify_column(event.x)
-        if column:
-            self.dragging = column
-            self.drag_start_x = event.x
-
-    def drag_column(self, event):
-        if self.dragging:
-            dx = event.x - self.drag_start_x
-            if dx != 0:
-                columns = list(self.tree["columns"])
-                current_idx = columns.index(self.dragging)
-                new_idx = max(0, min(len(columns) - 1, current_idx + (1 if dx > 0 else -1)))
-                if current_idx != new_idx:
-                    columns[current_idx], columns[new_idx] = columns[new_idx], columns[current_idx]
-                    self.tree.configure(columns=columns)
-                    for i, col in enumerate(columns):
-                        self.tree.heading(col, text=col)
-                        self.tree.column(col, width=self.tree.column(col, "width"))
-                        self.tree_frame.grid_columnconfigure(i, weight=1)
-                    self.drag_start_x = event.x
-
-    def end_drag(self, event):
-        self.dragging = None
 
     def on_double_click(self, event):
         item = self.tree.identify_row(event.y)
