@@ -38,6 +38,9 @@ class App:
         for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar"):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
+            # Habilitar edição para colunas editáveis
+            if col in ["Nome", "Admissão", "Opção"]:
+                self.tree.column(col, editable=True)
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
@@ -83,55 +86,62 @@ class App:
 
     def on_double_click(self, event):
         item = self.tree.identify_row(event.y)
-        if item:
-            column = self.tree.identify_column(event.x)
-            column_name = self.tree.heading(column, 'text')
-            if column_name in ["Matricula", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Dias a Tirar"]:
-                return  # Bloqueia edição em colunas não editáveis
-            current_value = self.tree.set(item, column_name)
-            self.tree.set(item, column_name, "")
-            entry = tk.Entry(self.tree)
-            entry.insert(0, current_value)
-            entry.select_range(0, tk.END)
-            entry.focus_set()
-            
-            def save_edit(event=None):
-                new_value = entry.get().strip()
-                if column_name == "Admissão" or column_name == "Nome":
-                    try:
-                        if column_name == "Admissão":
-                            new_value = datetime.strptime(new_value, "%d/%m/%Y").strftime("%Y-%m-%d")
-                        self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
-                    except ValueError:
-                        messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa para Admissão.")
-                        entry.delete(0, tk.END)
-                        entry.insert(0, current_value)
-                        return
-                elif column_name == "Opção":
-                    try:
-                        new_value = int(new_value)
-                        if new_value not in (15, 30):
-                            raise ValueError
-                        self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
-                    except ValueError:
-                        messagebox.showerror("Erro", "Opção deve ser 15 ou 30.")
-                        entry.delete(0, tk.END)
-                        entry.insert(0, current_value)
-                        return
-                self.tree.set(item, column_name, new_value)
-                entry.destroy()
-                self.btn_salvar.config(state='normal' if self.edited_items else 'disabled')
+        if not item:
+            return
+        column = self.tree.identify_column(event.x)
+        column_name = self.tree.heading(column, 'text')
+        if column_name not in ["Nome", "Admissão", "Opção"]:  # Apenas colunas editáveis
+            return
+        current_value = self.tree.set(item, column_name)
+        self.tree.set(item, column_name, "")
+        entry = tk.Entry(self.tree)
+        entry.insert(0, current_value)
+        entry.select_range(0, tk.END)
+        entry.focus_set()
+        
+        def save_edit(event=None):
+            new_value = entry.get().strip()
+            if not new_value:
+                entry.delete(0, tk.END)
+                entry.insert(0, current_value)
+                return
+            if column_name == "Admissão":
+                try:
+                    new_value = datetime.strptime(new_value, "%d/%m/%Y").strftime("%Y-%m-%d")
+                    self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                except ValueError:
+                    messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa.")
+                    entry.delete(0, tk.END)
+                    entry.insert(0, current_value)
+                    return
+            elif column_name == "Opção":
+                try:
+                    new_value = int(new_value)
+                    if new_value not in (15, 30):
+                        raise ValueError
+                    self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                except ValueError:
+                    messagebox.showerror("Erro", "Opção deve ser 15 ou 30.")
+                    entry.delete(0, tk.END)
+                    entry.insert(0, current_value)
+                    return
+            elif column_name == "Nome":
+                self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+            self.tree.set(item, column_name, entry.get())
+            entry.destroy()
+            self.btn_salvar.config(state='normal' if self.edited_items else 'disabled')
 
-            def cancel_edit(event=None):
-                self.tree.set(item, column_name, current_value)
-                entry.destroy()
-                if item not in self.edited_items or not self.edited_items[item]:
-                    self.btn_salvar.config(state='disabled')
+        def cancel_edit(event=None):
+            self.tree.set(item, column_name, current_value)
+            entry.destroy()
+            if item not in self.edited_items or not self.edited_items[item]:
+                self.btn_salvar.config(state='disabled')
 
-            entry.bind("<Return>", save_edit)
-            entry.bind("<Escape>", cancel_edit)
-            entry.bind("<FocusOut>", save_edit)
-            entry.place(x=self.tree.bbox(item, column)[0], y=self.tree.bbox(item, column)[1], width=self.tree.column(column_name)["width"], height=self.tree.bbox(item, column)[3])
+        entry.bind("<Return>", save_edit)
+        entry.bind("<Escape>", cancel_edit)
+        entry.bind("<FocusOut>", save_edit)
+        entry.place(x=self.tree.bbox(item, column)[0], y=self.tree.bbox(item, column)[1], 
+                    width=self.tree.column(column_name)["width"], height=self.tree.bbox(item, column)[3])
 
     def abrir_janela_adicionar_colaborador(self):
         self.btn_adicionar_ferias.config(state='disabled')
