@@ -29,19 +29,15 @@ class App:
         self.btn_adicionar_ferias = tk.Button(self.button_frame, text="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
         self.btn_adicionar_ferias.pack(side='left', padx=5)
         
-        # Treeview com grade visível
+        # Treeview
         self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Configurar cabeçalhos e colunas com grade
+        # Configurar cabeçalhos e colunas
         self.font = font.Font(family="Helvetica", size=10)
         for col in ("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"):
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_by_column(c))
             self.tree.column(col, width=self.font.measure(col + "  "), minwidth=50, stretch=True)
-        
-        # Habilitar grade visível no Treeview
-        self.tree.configure(style="Treeview")
-        self.tree.tag_configure('grid', background='gray92')  # Cor clara para as linhas da grade
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
@@ -310,10 +306,10 @@ class App:
                 dias_a_tirar = proxima_duracao[0] if proxima_duracao else 0
                 # Corrigindo a concatenação de lista com tupla
                 values = list(row[1:]) + [dias_a_tirar]
-                item = self.tree.insert("", tk.END, values=values, tags=('grid', row[0]))
+                item = self.tree.insert("", tk.END, values=values, tags=(row[0],))
                 cursor.execute("SELECT ativo FROM colaboradores WHERE matricula = ?", (row[1],))
                 ativo = cursor.fetchone()[0]
                 if not ativo:
-                    self.tree.item(item, tags=('grid', row[0], 'disabled'))
+                    self.tree.item(item, tags=(row[0], 'disabled'))
                     self.tree.tag_configure('disabled', foreground="gray")
         self.ajustar_largura_colunas(table_data)
