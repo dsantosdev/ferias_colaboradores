@@ -12,10 +12,15 @@ class App:
         self.root.title("Gerenciador de Férias")
         self.sort_column = None
         self.sort_reverse = False
+        self.edited_items = {}  # Armazena alterações temporárias
         
         # Frame para botões no topo
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack(pady=10)
+        
+        # Botão de salvar
+        self.btn_salvar = tk.Button(self.button_frame, text="Salvar Alterações", command=self.salvar_alteracoes, state='disabled')
+        self.btn_salvar.pack(side='left', padx=5)
         
         # Botões de ação
         self.btn_adicionar_colaborador = tk.Button(self.button_frame, text="Adicionar Colaborador", command=self.abrir_janela_adicionar_colaborador)
@@ -36,9 +41,7 @@ class App:
         
         # Menu de contexto
         self.context_menu = tk.Menu(self.root, tearoff=0)
-        self.context_menu.add_command(label="Editar Colaborador", command=self.editar_colaborador)
         self.context_menu.add_command(label="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
-        self.context_menu.add_command(label="Editar Férias", command=self.editar_ferias)
         self.context_menu.add_command(label="Excluir Colaborador", command=self.excluir_colaborador)
         self.tree.bind("<Button-3>", self.mostrar_menu_contexto)
         
@@ -47,6 +50,9 @@ class App:
         self.tree.tag_configure("yellow", background="yellow", foreground="black")
         self.tree.tag_configure("green", background="green", foreground="white")
         self.tree.tag_configure("disabled", foreground="gray")
+        
+        # Habilitar edição inline
+        self.tree.bind("<Double-1>", self.on_double_click)
         
         self.atualizar_lista()
 
@@ -74,6 +80,58 @@ class App:
         if item:
             self.tree.selection_set(item)
             self.context_menu.post(event.x_root, event.y_root)
+
+    def on_double_click(self, event):
+        item = self.tree.identify_row(event.y)
+        if item:
+            column = self.tree.identify_column(event.x)
+            column_name = self.tree.heading(column, 'text')
+            if column_name in ["Matricula", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Dias a Tirar"]:
+                return  # Bloqueia edição em colunas não editáveis
+            current_value = self.tree.set(item, column_name)
+            self.tree.set(item, column_name, "")
+            entry = tk.Entry(self.tree)
+            entry.insert(0, current_value)
+            entry.select_range(0, tk.END)
+            entry.focus_set()
+            
+            def save_edit(event=None):
+                new_value = entry.get().strip()
+                if column_name == "Admissão" or column_name == "Nome":
+                    try:
+                        if column_name == "Admissão":
+                            new_value = datetime.strptime(new_value, "%d/%m/%Y").strftime("%Y-%m-%d")
+                        self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                    except ValueError:
+                        messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa para Admissão.")
+                        entry.delete(0, tk.END)
+                        entry.insert(0, current_value)
+                        return
+                elif column_name == "Opção":
+                    try:
+                        new_value = int(new_value)
+                        if new_value not in (15, 30):
+                            raise ValueError
+                        self.edited_items[item] = self.edited_items.get(item, {}) | {column_name: new_value}
+                    except ValueError:
+                        messagebox.showerror("Erro", "Opção deve ser 15 ou 30.")
+                        entry.delete(0, tk.END)
+                        entry.insert(0, current_value)
+                        return
+                self.tree.set(item, column_name, new_value)
+                entry.destroy()
+                self.btn_salvar.config(state='normal' if self.edited_items else 'disabled')
+
+            def cancel_edit(event=None):
+                self.tree.set(item, column_name, current_value)
+                entry.destroy()
+                if item not in self.edited_items or not self.edited_items[item]:
+                    self.btn_salvar.config(state='disabled')
+
+            entry.bind("<Return>", save_edit)
+            entry.bind("<Escape>", cancel_edit)
+            entry.bind("<FocusOut>", save_edit)
+            entry.place(x=self.tree.bbox(item, column)[0], y=self.tree.bbox(item, column)[1], width=self.tree.column(column_name)["width"], height=self.tree.bbox(item, column)[3])
 
     def abrir_janela_adicionar_colaborador(self):
         self.btn_adicionar_ferias.config(state='disabled')
@@ -159,140 +217,25 @@ class App:
         tk.Button(janela, text="Salvar", command=salvar).pack(pady=10)
         janela.protocol("WM_DELETE_WINDOW", lambda: [self.btn_adicionar_colaborador.config(state='normal'), janela.destroy()])
 
-    def editar_colaborador(self):
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Aviso", "Selecione um colaborador.")
+    def salvar_alteracoes(self):
+        if not self.edited_items:
             return
-        matricula = self.tree.item(selected_item, 'values')[0]
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT nome, data_contratacao, preferencia FROM colaboradores WHERE matricula = ?", (matricula,))
-            dados = cursor.fetchone()
-            if not dados:
-                messagebox.showerror("Erro", "Colaborador não encontrado.")
-                return
-            nome, data_contratacao, preferencia = dados
-
-        janela = tk.Toplevel(self.root)
-        janela.title("Editar Colaborador")
-        janela.geometry("300x250")
-        janela.transient(self.root)
-        janela.grab_set()
-
-        tk.Label(janela, text="Matrícula:").pack(pady=5)
-        tk.Label(janela, text=matricula).pack()
-
-        tk.Label(janela, text="Nome:").pack(pady=5)
-        nome_entry = tk.Entry(janela)
-        nome_entry.insert(0, nome)
-        nome_entry.pack()
-
-        tk.Label(janela, text="Data de Contratação (dd/mm/aaaa):").pack(pady=5)
-        data_entry = tk.Entry(janela)
-        data_entry.insert(0, datetime.strptime(data_contratacao, "%Y-%m-%d").strftime("%d/%m/%Y"))
-        data_entry.pack()
-
-        tk.Label(janela, text="Preferência de Férias (15 ou 30 dias):").pack(pady=5)
-        preferencia_entry = tk.Entry(janela)
-        preferencia_entry.insert(0, str(preferencia))
-        preferencia_entry.pack()
-
-        def salvar():
-            novo_nome = nome_entry.get()
-            nova_data = data_entry.get()
-            nova_preferencia = preferencia_entry.get()
-            try:
-                nova_preferencia = int(nova_preferencia) if nova_preferencia in ('15', '30') else preferencia
-                data_obj = datetime.strptime(nova_data, "%d/%m/%Y").strftime("%Y-%m-%d")
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE colaboradores SET nome = ?, data_contratacao = ?, preferencia = ? WHERE matricula = ?",
-                                   (novo_nome, data_obj, nova_preferencia, matricula))
-                    conn.commit()
-                self.atualizar_lista()
-                janela.destroy()
-            except ValueError as e:
-                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
-            except Exception as e:
-                messagebox.showerror("Erro", str(e))
-
-        tk.Button(janela, text="Salvar", command=salvar).pack(pady=10)
-        janela.protocol("WM_DELETE_WINDOW", lambda: janela.destroy())
-
-    def editar_ferias(self):
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Aviso", "Selecione um colaborador.")
-            return
-        matricula = self.tree.item(selected_item, 'values')[0]
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM colaboradores WHERE matricula = ?", (matricula,))
-            colaborador_id = cursor.fetchone()[0]
-            cursor.execute("SELECT ano, data_inicio, duracao FROM ferias_historico WHERE colaborador_id = ? ORDER BY data_inicio DESC", (colaborador_id,))
-            ferias = cursor.fetchall()
-
-        if not ferias:
-            messagebox.showwarning("Aviso", "Nenhuma férias registrada para este colaborador.")
-            return
-
-        janela = tk.Toplevel(self.root)
-        janela.title("Editar Férias")
-        janela.geometry("300x300")
-        janela.transient(self.root)
-        janela.grab_set()
-
-        # Variáveis para rastrear a férias selecionada
-        selected_ferias = tk.StringVar(value=ferias[0] if ferias else "")
-        ferias_list = ttk.Combobox(janela, textvariable=selected_ferias, values=[f"{f[0]} - {f[1]} ({f[2]} dias)" for f in ferias])
-        ferias_list.pack(pady=5)
-
-        tk.Label(janela, text="Data de Início (dd/mm/aaaa):").pack(pady=5)
-        data_entry = tk.Entry(janela)
-        data_entry.insert(0, datetime.strptime(ferias[0][1], "%Y-%m-%d").strftime("%d/%m/%Y") if ferias else "")
-        data_entry.pack()
-
-        tk.Label(janela, text="Duração (15 ou 30 dias):").pack(pady=5)
-        duracao_entry = tk.Entry(janela)
-        duracao_entry.insert(0, str(ferias[0][2]) if ferias else "")
-        duracao_entry.pack()
-
-        def atualizar_campos(event=None):
-            if ferias_list.get():
-                ano, data, duracao = next(f for f in ferias if f"{f[0]} - {f[1]} ({f[2]} dias)" == ferias_list.get())
-                data_entry.delete(0, tk.END)
-                data_entry.insert(0, datetime.strptime(data, "%Y-%m-%d").strftime("%d/%m/%Y"))
-                duracao_entry.delete(0, tk.END)
-                duracao_entry.insert(0, str(duracao))
-
-        ferias_list.bind("<<ComboboxSelected>>", atualizar_campos)
-        atualizar_campos()
-
-        def salvar():
-            if not ferias_list.get():
-                messagebox.showerror("Erro", "Selecione uma férias para editar.")
-                return
-            nova_data = data_entry.get()
-            nova_duracao = duracao_entry.get()
-            try:
-                nova_duracao = int(nova_duracao) if nova_duracao in ('15', '30') else int(duracao_entry.get())
-                data_obj = datetime.strptime(nova_data, "%d/%m/%Y").strftime("%Y-%m-%d")
-                ano_selecionado, _, _ = next(f for f in ferias if f"{f[0]} - {f[1]} ({f[2]} dias)" == ferias_list.get())
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE ferias_historico SET data_inicio = ?, duracao = ? WHERE colaborador_id = ? AND ano = ?",
-                                   (data_obj, nova_duracao, colaborador_id, ano_selecionado))
-                    conn.commit()
-                self.atualizar_lista()
-                janela.destroy()
-            except ValueError as e:
-                messagebox.showerror("Erro", f"Formato de data inválido. Use dd/mm/aaaa. {str(e)}")
-            except Exception as e:
-                messagebox.showerror("Erro", str(e))
-
-        tk.Button(janela, text="Salvar", command=salvar).pack(pady=10)
-        janela.protocol("WM_DELETE_WINDOW", lambda: janela.destroy())
+            for item_id, changes in self.edited_items.items():
+                matricula = self.tree.item(item_id, 'values')[0]
+                cursor.execute("SELECT id FROM colaboradores WHERE matricula = ?", (matricula,))
+                colaborador_id = cursor.fetchone()[0]
+                if "Nome" in changes:
+                    cursor.execute("UPDATE colaboradores SET nome = ? WHERE id = ?", (changes["Nome"], colaborador_id))
+                if "Admissão" in changes:
+                    cursor.execute("UPDATE colaboradores SET data_contratacao = ? WHERE id = ?", (changes["Admissão"], colaborador_id))
+                if "Opção" in changes:
+                    cursor.execute("UPDATE colaboradores SET preferencia = ? WHERE id = ?", (changes["Opção"], colaborador_id))
+            conn.commit()
+        self.edited_items.clear()
+        self.btn_salvar.config(state='disabled')
+        self.atualizar_lista()
 
     def excluir_colaborador(self):
         selected_item = self.tree.selection()
