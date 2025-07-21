@@ -29,7 +29,7 @@ class App:
         self.btn_adicionar_ferias = tk.Button(self.button_frame, text="Adicionar Férias", command=self.abrir_janela_adicionar_ferias)
         self.btn_adicionar_ferias.pack(side='left', padx=5)
         
-        # Treeview com nova coluna "Dias a Tirar"
+        # Treeview com nova coluna "Dias a Tirar Próximas"
         self.tree = ttk.Treeview(self.root, columns=("Matricula", "Nome", "Admissão", "Penúltima", "Última", "Próxima 1", "Próxima 2", "Deseja", "Opção", "Dias a Tirar Próximas"), show="headings")
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -304,7 +304,8 @@ class App:
                 cursor.execute("SELECT duracao FROM ferias_historico WHERE colaborador_id = ? AND data_inicio >= DATE('now') ORDER BY data_inicio LIMIT 1", (colaborador_id,))
                 proxima_duracao = cursor.fetchone()
                 dias_a_tirar = proxima_duracao[0] if proxima_duracao else 0
-                values = row[1:] + (dias_a_tirar,)
+                # Corrigindo a concatenação de lista com tupla
+                values = list(row[1:]) + [dias_a_tirar]
                 item = self.tree.insert("", tk.END, values=values, tags=(row[0],))
                 cursor.execute("SELECT ativo FROM colaboradores WHERE matricula = ?", (row[1],))
                 ativo = cursor.fetchone()[0]
